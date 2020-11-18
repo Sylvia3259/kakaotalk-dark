@@ -6,5 +6,8 @@
 #include <stdarg.h>
 #include <tchar.h>
 #include <detours.h>
+#include <objidl.h>
+#include <gdiplus.h>
+#pragma comment(lib, "Gdiplus.lib")
 
 #endif
