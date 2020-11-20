@@ -2,18 +2,9 @@
 using namespace Gdiplus;
 using namespace Gdiplus::DllExports;
 
-typedef HBRUSH(WINAPI* ORGFP1) (COLORREF);
-typedef COLORREF(WINAPI* ORGFP2) (HDC, COLORREF);
-typedef GpStatus(WINGDIPAPI* ORGFP3) (GDIPCONST WCHAR* filename, GpBitmap** bitmap);
-typedef GpStatus(WINGDIPAPI* ORGFP4) (GDIPCONST WCHAR* filename, GpBitmap** bitmap);
-typedef GpStatus(WINGDIPAPI* ORGFP5) (IStream* stream, GpBitmap** bitmap);
-typedef GpStatus(WINGDIPAPI* ORGFP6) (IStream* stream, GpBitmap** bitmap);
-ORGFP1 originFunc1 = CreateSolidBrush;
-ORGFP2 originFunc2 = SetTextColor;
-ORGFP3 originFunc3 = GdipCreateBitmapFromFile;
-ORGFP4 originFunc4 = GdipCreateBitmapFromFileICM;
-ORGFP5 originFunc5 = GdipCreateBitmapFromStream;
-ORGFP6 originFunc6 = GdipCreateBitmapFromStreamICM;
+COLORREF(WINAPI* lpfnSetTextColor)(HDC, COLORREF) = SetTextColor;
+HBRUSH(WINAPI* lpfnCreateSolidBrush)(COLORREF) = CreateSolidBrush;
+GpStatus(WINGDIPAPI* lpfnGdipCreateBitmapFromFile)(GDIPCONST WCHAR*, GpBitmap**) = GdipCreateBitmapFromFile;
 
 DWORD WriteLog(LPCTSTR lpszFormat, ...) {
 	TCHAR szLog[512];
@@ -29,36 +20,21 @@ DWORD WriteLog(LPCTSTR lpszFormat, ...) {
 	return dwCharsWritten;
 }
 
-HBRUSH WINAPI DetourFunc1(COLORREF color) {
-	WriteLog(TEXT("Background : (%d, %d, %d)\n"), (color >> 0) & 0xFF, (color >> 8) & 0xFF, (color >> 16) & 0xFF);
+COLORREF WINAPI MySetTextColor(HDC hdc, COLORREF color) {
+	WriteLog(TEXT("SetTextColor(0x%08X, RGB(%d, %d, %d))\n"), hdc, GetRValue(color), GetGValue(color), GetBValue(color));
 	color = 0xFFFFFF - color;
-	return originFunc1(color);
+	return lpfnSetTextColor(hdc, color);
 }
 
-COLORREF WINAPI DetourFunc2(HDC hdc, COLORREF color) {
-	WriteLog(TEXT("Text : (%d, %d, %d)\n"), (color >> 0) & 0xFF, (color >> 8) & 0xFF, (color >> 16) & 0xFF);
+HBRUSH WINAPI MyCreateSolidBrush(COLORREF color) {
+	WriteLog(TEXT("CreateSolidBrush(RGB(%d, %d, %d))\n"), GetRValue(color), GetGValue(color), GetBValue(color));
 	color = 0xFFFFFF - color;
-	return originFunc2(hdc, color);
+	return lpfnCreateSolidBrush(color);
 }
 
-GpStatus WINGDIPAPI DetourFunc3(GDIPCONST WCHAR* filename, GpBitmap** bitmap) {
-	WriteLog(TEXT("GdipCreateBitmapFromFile(%s, 0x%08X)\n"), filename, bitmap);
-	return originFunc3(filename, bitmap);
-}
-
-GpStatus WINGDIPAPI DetourFunc4(GDIPCONST WCHAR* filename, GpBitmap** bitmap) {
-	WriteLog(TEXT("GdipCreateBitmapFromFileICM(%s, 0x%08X)\n"), filename, bitmap);
-	return originFunc4(filename, bitmap);
-}
-
-GpStatus WINGDIPAPI DetourFunc5(IStream* stream, GpBitmap** bitmap) {
-	WriteLog(TEXT("GdipCreateBitmapFromStream(0x%08X, 0x%08X)\n"), stream, bitmap);
-	return originFunc5(stream, bitmap);
-}
-
-GpStatus WINGDIPAPI DetourFunc6(IStream* stream, GpBitmap** bitmap) {
-	WriteLog(TEXT("GdipCreateBitmapFromStreamICM(0x%08X, 0x%08X)\n"), stream, bitmap);
-	return originFunc6(stream, bitmap);
+GpStatus WINGDIPAPI MyGdipCreateBitmapFromFile(GDIPCONST WCHAR* filename, GpBitmap** bitmap) {
+	WriteLog(TEXT("GdipCreateBitmapFromFile(\"%s\", 0x%08X)\n"), filename, bitmap);
+	return lpfnGdipCreateBitmapFromFile(filename, bitmap);
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
@@ -71,24 +47,18 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 		DetourRestoreAfterWith();
 		DetourTransactionBegin();
 		DetourUpdateThread(GetCurrentThread());
-		DetourAttach(&(PVOID&)originFunc1, DetourFunc1);
-		DetourAttach(&(PVOID&)originFunc2, DetourFunc2);
-		DetourAttach(&(PVOID&)originFunc3, DetourFunc3);
-		DetourAttach(&(PVOID&)originFunc4, DetourFunc4);
-		DetourAttach(&(PVOID&)originFunc5, DetourFunc5);
-		DetourAttach(&(PVOID&)originFunc6, DetourFunc6);
+		DetourAttach(&(PVOID&)lpfnSetTextColor, MySetTextColor);
+		DetourAttach(&(PVOID&)lpfnCreateSolidBrush, MyCreateSolidBrush);
+		DetourAttach(&(PVOID&)lpfnGdipCreateBitmapFromFile, MyGdipCreateBitmapFromFile);
 		DetourTransactionCommit();
 		break;
 	case DLL_PROCESS_DETACH:
 		FreeConsole();
 		DetourTransactionBegin();
 		DetourUpdateThread(GetCurrentThread());
-		DetourDetach(&(PVOID&)originFunc1, DetourFunc1);
-		DetourDetach(&(PVOID&)originFunc2, DetourFunc2);
-		DetourDetach(&(PVOID&)originFunc3, DetourFunc3);
-		DetourDetach(&(PVOID&)originFunc4, DetourFunc4);
-		DetourDetach(&(PVOID&)originFunc5, DetourFunc5);
-		DetourDetach(&(PVOID&)originFunc6, DetourFunc6);
+		DetourDetach(&(PVOID&)lpfnSetTextColor, MySetTextColor);
+		DetourDetach(&(PVOID&)lpfnCreateSolidBrush, MyCreateSolidBrush);
+		DetourDetach(&(PVOID&)lpfnGdipCreateBitmapFromFile, MyGdipCreateBitmapFromFile);
 		DetourTransactionCommit();
 		break;
 	}
