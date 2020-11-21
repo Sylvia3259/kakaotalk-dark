@@ -4,7 +4,6 @@
 #include "framework.h"
 #include <stdio.h>
 #include <stdarg.h>
-#include <tchar.h>
 #include <detours.h>
 #include <objidl.h>
 #include <gdiplus.h>
